@@ -75,7 +75,6 @@ class ProductMonitor:
                 logger.debug(f'Cache hit for {url} at store {store_number} (age: {cache_age.total_seconds():.1f}s)')
                 return cached_data['in_stock'], cached_data['title']
 
-        logger.info(f'Checking product availability: {url} at store {store_number}')
         try:
             # Create cookie for store selection
             cookie = {
@@ -164,12 +163,6 @@ class ProductMonitor:
                                 logger.debug(f"Found out-of-stock indicator: '{indicator}'")
                                 break
 
-                    # Log final stock determination
-                    stock_status = 'IN STOCK' if in_stock else 'OUT OF STOCK' if in_stock is False else 'UNKNOWN'
-                    logger.info(
-                        f'Product check result for {product_title or url} at store {store_number}: {stock_status}'
-                    )
-
                     # Store in cache
                     self._check_cache[cache_key] = {
                         'in_stock': in_stock,
@@ -185,7 +178,6 @@ class ProductMonitor:
 
     async def check_user_products(self, user_id):
         """Check all products for a specific user"""
-        logger.info(f'Checking products for user {user_id}')
         user_id_str = str(user_id)
         products = self.db.get_user_products(user_id_str)
 
@@ -252,15 +244,13 @@ class ProductMonitor:
 
         while not self.bot.is_closed():
             check_start_time = datetime.now()
-            logger.info(f'========== Starting product check cycle at {check_start_time.isoformat()} ==========')
+            logger.info(f'Starting product check cycle at {check_start_time.isoformat()}')
 
             # Clean expired cache entries before each check cycle
             self._clean_expired_cache()
 
             # Get all unique products to check
             all_products = self.db.get_all_products()
-            logger.info(f'Found {len(all_products)} unique product(s) to check across all users')
-
             checked_count = 0
             error_count = 0
 
@@ -329,7 +319,7 @@ class ProductMonitor:
             check_end_time = datetime.now()
             check_duration = (check_end_time - check_start_time).total_seconds()
             logger.info(
-                f'========== Check cycle complete in {check_duration:.1f}s - Checked: {checked_count}, Errors: {error_count} =========='
+                f'Check cycle complete in {check_duration:.1f}s - Checked: {checked_count}, Errors: {error_count}'
             )
             logger.info(f'Sleeping for {Config.CHECK_INTERVAL} seconds ({Config.CHECK_INTERVAL // 60} minutes)')
 
