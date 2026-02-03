@@ -15,9 +15,16 @@ load_dotenv()
 
 # Configure logging
 logging.basicConfig(
-    level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s', datefmt='%Y-%m-%d %H:%M:%S'
+    level=logging.INFO,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+    datefmt='%Y-%m-%d %H:%M:%S',
+    force=True,  # Prevent duplicate handlers
 )
 logger = logging.getLogger(__name__)
+
+# Configure discord.py logger to use the same settings
+discord_logger = logging.getLogger('discord')
+discord_logger.setLevel(logging.INFO)
 
 intents = discord.Intents.default()
 intents.message_content = True
@@ -241,7 +248,6 @@ async def check_all(interaction: discord.Interaction):
     await interaction.response.defer(ephemeral=True)
 
     products = monitor.get_user_products(interaction.user.id)
-    logger.debug(f'User {interaction.user.id} has {len(products)} product(s) to check')
 
     if not products:
         await interaction.followup.send(
@@ -411,7 +417,7 @@ def main():
         return
 
     logger.info('Starting bot...')
-    bot.run(token)
+    bot.run(token, log_handler=None)
 
 
 if __name__ == '__main__':
