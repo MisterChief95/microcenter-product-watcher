@@ -1,3 +1,27 @@
-- uses: astral-sh/ruff-action@v3
-  with:
-    src: "./src"
+name: Ruff CI
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12' # Use your desired Python version
+      - name: Run Ruff
+        # Use the official action from astral-sh/ruff-action
+        uses: astral-sh/ruff-action@v3
+        with:
+          args: "check --output-format=github ."
+          # The GITHUB_TOKEN is automatically available for PR comments
+          github-token: ${{ secrets.GITHUB_TOKEN }}
