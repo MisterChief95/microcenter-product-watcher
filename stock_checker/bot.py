@@ -344,6 +344,7 @@ class ProductSelectView(View):
         # Group consecutive same-status checks
         grouped = []
         prev_status = None
+        prev_time = None
         count = 0
         start_time = None
 
