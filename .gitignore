@@ -1,0 +1,40 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+env/
+venv/
+ENV/
+.env
+.venv
+*.egg-info/
+dist/
+build/
+
+# Logs
+*.log
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Legacy data files
+user_data.json
+user_data.json.backup
+
+# Database files
+products.db
+*.db
+*.sqlite
+*.sqlite3
+
+# Data directory (contains Docker volume data)
+data/
+
+# Docker
+docker-compose.override.yml
+
+# Claude
+.claude/

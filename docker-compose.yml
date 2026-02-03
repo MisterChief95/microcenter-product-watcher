@@ -1,0 +1,42 @@
+services:
+  microcenter-watcher:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: microcenter-product-watcher:latest
+    container_name: microcenter-watcher
+    restart: unless-stopped
+    network_mode: "host"
+
+    # Environment variables from .env file
+    env_file:
+      - .env
+
+    # Volume mount for SQLite database persistence
+    # Option 1: Bind mount (current - good for easy access/backups)
+    volumes:
+      - ./data:/app/data
+
+    # Option 2: Named volume (uncomment below and comment above for Docker-managed storage)
+    # volumes:
+    #   - microcenter-data:/app/data
+
+    # Optional: Healthcheck
+    healthcheck:
+      test: ["CMD-SHELL", "pgrep -f 'python bot.py' || exit 1"]
+      interval: 60s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+
+    # Logging configuration
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+# Named volumes (only needed if using Option 2 above)
+# volumes:
+#   microcenter-data:
+#     driver: local
