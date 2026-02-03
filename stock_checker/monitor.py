@@ -1,8 +1,9 @@
-import aiohttp
-from bs4 import BeautifulSoup
 import asyncio
 import logging
 from datetime import datetime, timedelta
+
+import aiohttp
+from bs4 import BeautifulSoup
 
 from stock_checker.config import Config
 from stock_checker.database import Database
@@ -20,16 +21,16 @@ class ProductMonitor:
 
     async def add_product(self, user_id, url, store_number, title=None, in_stock=None):
         """Add a product to monitor for a user"""
-        logger.info(f"Adding product for user {user_id}: {url} at store {store_number}")
+        logger.info(f'Adding product for user {user_id}: {url} at store {store_number}')
         user_id_str = str(user_id)
         success, product_id = self.db.add_product_for_user(user_id_str, url, store_number)
 
         if success and title:
-            logger.info(f"Product added successfully (ID: {product_id}): {title}")
+            logger.info(f'Product added successfully (ID: {product_id}): {title}')
             # Update the product with title and stock status
             self.db.update_product_stock(product_id, in_stock if in_stock is not None else False, title)
         elif not success:
-            logger.warning(f"Failed to add product for user {user_id}: {url}")
+            logger.warning(f'Failed to add product for user {user_id}: {url}')
 
         return success
 
@@ -47,14 +48,13 @@ class ProductMonitor:
         """Remove expired entries from the cache"""
         now = datetime.now()
         expired_keys = [
-            key for key, data in self._check_cache.items()
-            if now - data['timestamp'] >= self._cache_duration
+            key for key, data in self._check_cache.items() if now - data['timestamp'] >= self._cache_duration
         ]
         for key in expired_keys:
             del self._check_cache[key]
 
         if expired_keys:
-            logger.debug(f"Cleaned {len(expired_keys)} expired cache entries")
+            logger.debug(f'Cleaned {len(expired_keys)} expired cache entries')
 
     async def check_product_availability(self, url, store_number, use_cache=True):
         """Check if a product is in stock at the specified store and return (in_stock, title)
@@ -72,10 +72,10 @@ class ProductMonitor:
             cache_age = datetime.now() - cached_data['timestamp']
 
             if cache_age < self._cache_duration:
-                logger.debug(f"Cache hit for {url} at store {store_number} (age: {cache_age.total_seconds():.1f}s)")
+                logger.debug(f'Cache hit for {url} at store {store_number} (age: {cache_age.total_seconds():.1f}s)')
                 return cached_data['in_stock'], cached_data['title']
 
-        logger.info(f"Checking product availability: {url} at store {store_number}")
+        logger.info(f'Checking product availability: {url} at store {store_number}')
         try:
             # Create cookie for store selection
             cookie = {
@@ -84,7 +84,7 @@ class ProductMonitor:
                 'domain': '.microcenter.com',
                 'path': '/',
                 'secure': True,
-                'httpOnly': False
+                'httpOnly': False,
             }
 
             headers = {
@@ -103,7 +103,7 @@ class ProductMonitor:
                 'Sec-Ch-Ua': '"Not_A Brand";v="8", "Chromium";v="131", "Google Chrome";v="131"',
                 'Sec-Ch-Ua-Mobile': '?0',
                 'Sec-Ch-Ua-Platform': '"Windows"',
-                'Cache-Control': 'max-age=0'
+                'Cache-Control': 'max-age=0',
             }
 
             # Add timeout to prevent hanging requests
@@ -114,10 +114,10 @@ class ProductMonitor:
 
                 async with session.get(url, headers=headers, cookies=cookies) as response:
                     if response.status != 200:
-                        logger.warning(f"HTTP {response.status} when fetching {url}")
+                        logger.warning(f'HTTP {response.status} when fetching {url}')
                         return None, None
 
-                    logger.debug(f"Successfully fetched {url} (status 200)")
+                    logger.debug(f'Successfully fetched {url} (status 200)')
                     html = await response.text()
                     soup = BeautifulSoup(html, 'lxml')
 
@@ -127,9 +127,9 @@ class ProductMonitor:
                     if og_title and og_title.get('content'):
                         # Remove " - Micro Center" suffix if present
                         product_title = og_title.get('content').replace(' - Micro Center', '').strip()
-                        logger.debug(f"Extracted product title: {product_title}")
+                        logger.debug(f'Extracted product title: {product_title}')
                     else:
-                        logger.warning(f"Could not find product title for {url}")
+                        logger.warning(f'Could not find product title for {url}')
 
                     # Try to find stock information
                     # Microcenter typically shows stock with specific classes/IDs
@@ -141,26 +141,21 @@ class ProductMonitor:
                     add_to_cart = soup.find('button', {'data-name': 'Add to Cart'})
                     if add_to_cart and 'disabled' not in add_to_cart.get('class', []):
                         in_stock = True
-                        logger.debug(f"Found enabled 'Add to Cart' button - product is in stock")
+                        logger.debug("Found enabled 'Add to Cart' button - product is in stock")
 
                     # Check for inventory text
                     if in_stock is None:
                         inventory_div = soup.find('div', class_='inventory')
                         if inventory_div:
                             text = inventory_div.get_text().lower()
-                            logger.debug(f"Inventory div text: {text}")
+                            logger.debug(f'Inventory div text: {text}')
                             if 'in stock' in text and 'out of stock' not in text:
                                 in_stock = True
-                                logger.debug(f"Inventory div indicates in stock")
+                                logger.debug('Inventory div indicates in stock')
 
                     # Check for out of stock indicators
                     if in_stock is None:
-                        out_of_stock_indicators = [
-                            'sold out',
-                            'out of stock',
-                            'not available',
-                            'unavailable'
-                        ]
+                        out_of_stock_indicators = ['sold out', 'out of stock', 'not available', 'unavailable']
 
                         page_text = soup.get_text().lower()
                         for indicator in out_of_stock_indicators:
@@ -170,37 +165,39 @@ class ProductMonitor:
                                 break
 
                     # Log final stock determination
-                    stock_status = "IN STOCK" if in_stock else "OUT OF STOCK" if in_stock is False else "UNKNOWN"
-                    logger.info(f"Product check result for {product_title or url} at store {store_number}: {stock_status}")
+                    stock_status = 'IN STOCK' if in_stock else 'OUT OF STOCK' if in_stock is False else 'UNKNOWN'
+                    logger.info(
+                        f'Product check result for {product_title or url} at store {store_number}: {stock_status}'
+                    )
 
                     # Store in cache
                     self._check_cache[cache_key] = {
                         'in_stock': in_stock,
                         'title': product_title,
-                        'timestamp': datetime.now()
+                        'timestamp': datetime.now(),
                     }
 
                     return in_stock, product_title
 
         except Exception as e:
-            logger.error(f"Error checking product availability for {url}: {e}", exc_info=True)
+            logger.error(f'Error checking product availability for {url}: {e}', exc_info=True)
             return None, None
 
     async def check_user_products(self, user_id):
         """Check all products for a specific user"""
-        logger.info(f"Checking products for user {user_id}")
+        logger.info(f'Checking products for user {user_id}')
         user_id_str = str(user_id)
         products = self.db.get_user_products(user_id_str)
 
         if not products:
-            logger.debug(f"No products found for user {user_id}")
+            logger.debug(f'No products found for user {user_id}')
             return
 
-        logger.info(f"User {user_id} has {len(products)} product(s) to check")
+        logger.info(f'User {user_id} has {len(products)} product(s) to check')
 
         user = await self.bot.fetch_user(int(user_id))
         if not user:
-            logger.error(f"Could not fetch user object for user {user_id}")
+            logger.error(f'Could not fetch user object for user {user_id}')
             return
 
         for product in products:
@@ -208,55 +205,61 @@ class ProductMonitor:
             url = product['url']
             store_number = product['store_number']
 
-            logger.debug(f"Checking product ID {product_id} for user {user_id}")
+            logger.debug(f'Checking product ID {product_id} for user {user_id}')
 
             in_stock, title = await self.check_product_availability(url, store_number)
 
             if in_stock is None:
-                logger.warning(f"Could not determine stock for product ID {product_id}")
+                logger.warning(f'Could not determine stock for product ID {product_id}')
                 continue  # Skip if we couldn't determine stock
 
             # Update product in database
             previous_stock, current_stock = self.db.update_product_stock(product_id, in_stock, title)
-            logger.debug(f"Product ID {product_id}: previous_stock={previous_stock}, current_stock={current_stock}, notified={product['notified']}")
+            logger.debug(
+                f'Product ID {product_id}: previous_stock={previous_stock}, current_stock={current_stock}, notified={product["notified"]}'
+            )
 
             # Notify user if stock status changed from out of stock to in stock
             if current_stock and not previous_stock and not product['notified']:
                 product_title = title or product.get('title', 'Unknown Product')
-                logger.info(f"🎉 STOCK ALERT: Product '{product_title}' (ID {product_id}) is now in stock! Notifying user {user_id}")
+                logger.info(
+                    f"🎉 STOCK ALERT: Product '{product_title}' (ID {product_id}) is now in stock! Notifying user {user_id}"
+                )
                 try:
                     await user.send(
-                        f"🎉 **PRODUCT NOW IN STOCK!**\n\n"
-                        f"**{product_title}**\n"
-                        f"Store: {store_number}\n"
-                        f"{url}\n\n"
+                        f'🎉 **PRODUCT NOW IN STOCK!**\n\n'
+                        f'**{product_title}**\n'
+                        f'Store: {store_number}\n'
+                        f'{url}\n\n'
                         f"Hurry and grab it before it's gone!"
                     )
                     self.db.update_notified_status(user_id_str, product_id, True)
-                    logger.info(f"Successfully notified user {user_id} about product ID {product_id}")
+                    logger.info(f'Successfully notified user {user_id} about product ID {product_id}')
                 except Exception as e:
-                    logger.error(f"Failed to send notification to user {user_id}: {e}", exc_info=True)
+                    logger.error(f'Failed to send notification to user {user_id}: {e}', exc_info=True)
             elif not current_stock and previous_stock:
                 # Reset notification flag when product goes out of stock
-                logger.info(f"Product '{title or 'Unknown'}' (ID {product_id}) went out of stock - resetting notification flag")
+                logger.info(
+                    f"Product '{title or 'Unknown'}' (ID {product_id}) went out of stock - resetting notification flag"
+                )
                 self.db.update_notified_status(user_id_str, product_id, False)
 
     async def check_products_loop(self):
         """Continuously check all products for all users"""
-        logger.info("Product monitoring loop starting - waiting for bot to be ready")
+        logger.info('Product monitoring loop starting - waiting for bot to be ready')
         await self.bot.wait_until_ready()
-        logger.info("Bot is ready - starting monitoring loop")
+        logger.info('Bot is ready - starting monitoring loop')
 
         while not self.bot.is_closed():
             check_start_time = datetime.now()
-            logger.info(f"========== Starting product check cycle at {check_start_time.isoformat()} ==========")
+            logger.info(f'========== Starting product check cycle at {check_start_time.isoformat()} ==========')
 
             # Clean expired cache entries before each check cycle
             self._clean_expired_cache()
 
             # Get all unique products to check
             all_products = self.db.get_all_products()
-            logger.info(f"Found {len(all_products)} unique product(s) to check across all users")
+            logger.info(f'Found {len(all_products)} unique product(s) to check across all users')
 
             checked_count = 0
             error_count = 0
@@ -267,13 +270,13 @@ class ProductMonitor:
                     url = product['url']
                     store_number = product['store_number']
 
-                    logger.debug(f"Processing product ID {product_id}: {url}")
+                    logger.debug(f'Processing product ID {product_id}: {url}')
 
                     # Check availability
                     in_stock, title = await self.check_product_availability(url, store_number)
 
                     if in_stock is None:
-                        logger.warning(f"Skipping product ID {product_id} - could not determine stock status")
+                        logger.warning(f'Skipping product ID {product_id} - could not determine stock status')
                         error_count += 1
                         continue
 
@@ -286,40 +289,48 @@ class ProductMonitor:
                     if current_stock and not previous_stock:
                         user_ids = self.db.get_users_tracking_product(product_id)
                         product_title = title or product.get('title', 'Unknown Product')
-                        logger.info(f"🎉 STOCK CHANGE: '{product_title}' (ID {product_id}) is now IN STOCK at store {store_number}! Notifying {len(user_ids)} user(s)")
+                        logger.info(
+                            f"🎉 STOCK CHANGE: '{product_title}' (ID {product_id}) is now IN STOCK at store {store_number}! Notifying {len(user_ids)} user(s)"
+                        )
 
                         for user_id in user_ids:
                             try:
                                 user = await self.bot.fetch_user(int(user_id))
                                 if user:
                                     await user.send(
-                                        f"🎉 **PRODUCT NOW IN STOCK!**\n\n"
-                                        f"**{product_title}**\n"
-                                        f"Store: {store_number}\n"
-                                        f"{url}\n\n"
+                                        f'🎉 **PRODUCT NOW IN STOCK!**\n\n'
+                                        f'**{product_title}**\n'
+                                        f'Store: {store_number}\n'
+                                        f'{url}\n\n'
                                         f"Hurry and grab it before it's gone!"
                                     )
                                     self.db.update_notified_status(user_id, product_id, True)
-                                    logger.info(f"Notified user {user_id} about product ID {product_id}")
+                                    logger.info(f'Notified user {user_id} about product ID {product_id}')
                                 else:
-                                    logger.warning(f"Could not fetch user {user_id} to send notification")
+                                    logger.warning(f'Could not fetch user {user_id} to send notification')
                             except Exception as e:
-                                logger.error(f"Error notifying user {user_id} about product {product_id}: {e}", exc_info=True)
+                                logger.error(
+                                    f'Error notifying user {user_id} about product {product_id}: {e}', exc_info=True
+                                )
                                 error_count += 1
 
                     elif not current_stock and previous_stock:
                         # Reset notification flags for all users
                         product_title = title or product.get('title', 'Unknown Product')
-                        logger.info(f"STOCK CHANGE: '{product_title}' (ID {product_id}) went OUT OF STOCK - resetting notifications")
+                        logger.info(
+                            f"STOCK CHANGE: '{product_title}' (ID {product_id}) went OUT OF STOCK - resetting notifications"
+                        )
                         self.db.reset_notifications_for_product(product_id)
 
                 except Exception as e:
-                    logger.error(f"Error checking product {product.get('id', 'unknown')}: {e}", exc_info=True)
+                    logger.error(f'Error checking product {product.get("id", "unknown")}: {e}', exc_info=True)
                     error_count += 1
 
             check_end_time = datetime.now()
             check_duration = (check_end_time - check_start_time).total_seconds()
-            logger.info(f"========== Check cycle complete in {check_duration:.1f}s - Checked: {checked_count}, Errors: {error_count} ==========")
-            logger.info(f"Sleeping for {Config.CHECK_INTERVAL} seconds ({Config.CHECK_INTERVAL // 60} minutes)")
+            logger.info(
+                f'========== Check cycle complete in {check_duration:.1f}s - Checked: {checked_count}, Errors: {error_count} =========='
+            )
+            logger.info(f'Sleeping for {Config.CHECK_INTERVAL} seconds ({Config.CHECK_INTERVAL // 60} minutes)')
 
             await asyncio.sleep(Config.CHECK_INTERVAL)

@@ -1,8 +1,7 @@
 import os
 import sqlite3
 from datetime import datetime
-from typing import Optional, List, Dict, Tuple
-import json
+from typing import Dict, List, Optional, Tuple
 
 
 class Database:
@@ -25,15 +24,15 @@ class Database:
         cursor = conn.cursor()
 
         # Users table
-        cursor.execute('''
+        cursor.execute("""
             CREATE TABLE IF NOT EXISTS users (
                 user_id TEXT PRIMARY KEY,
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             )
-        ''')
+        """)
 
         # Products table - deduplicated by URL and store number
-        cursor.execute('''
+        cursor.execute("""
             CREATE TABLE IF NOT EXISTS products (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 url TEXT NOT NULL,
@@ -44,10 +43,10 @@ class Database:
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                 UNIQUE(url, store_number)
             )
-        ''')
+        """)
 
         # User-Product relationship table
-        cursor.execute('''
+        cursor.execute("""
             CREATE TABLE IF NOT EXISTS user_products (
                 user_id TEXT NOT NULL,
                 product_id INTEGER NOT NULL,
@@ -57,10 +56,10 @@ class Database:
                 FOREIGN KEY (user_id) REFERENCES users(user_id) ON DELETE CASCADE,
                 FOREIGN KEY (product_id) REFERENCES products(id) ON DELETE CASCADE
             )
-        ''')
+        """)
 
         # Stock history table for analytics (optional, but useful)
-        cursor.execute('''
+        cursor.execute("""
             CREATE TABLE IF NOT EXISTS stock_history (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 product_id INTEGER NOT NULL,
@@ -68,7 +67,7 @@ class Database:
                 checked_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                 FOREIGN KEY (product_id) REFERENCES products(id) ON DELETE CASCADE
             )
-        ''')
+        """)
 
         # Create indexes for better query performance
         cursor.execute('CREATE INDEX IF NOT EXISTS idx_products_url ON products(url)')
@@ -100,33 +99,26 @@ class Database:
             self.add_or_get_user(user_id)
 
             # Check if product already exists
-            cursor.execute(
-                'SELECT id FROM products WHERE url = ? AND store_number = ?',
-                (url, store_number)
-            )
+            cursor.execute('SELECT id FROM products WHERE url = ? AND store_number = ?', (url, store_number))
             row = cursor.fetchone()
 
             if row:
                 product_id = row['id']
             else:
                 # Create new product
-                cursor.execute(
-                    'INSERT INTO products (url, store_number) VALUES (?, ?)',
-                    (url, store_number)
-                )
+                cursor.execute('INSERT INTO products (url, store_number) VALUES (?, ?)', (url, store_number))
                 product_id = cursor.lastrowid
 
             # Create user-product relationship (ignore if already exists)
             cursor.execute(
-                'INSERT OR IGNORE INTO user_products (user_id, product_id) VALUES (?, ?)',
-                (user_id, product_id)
+                'INSERT OR IGNORE INTO user_products (user_id, product_id) VALUES (?, ?)', (user_id, product_id)
             )
 
             conn.commit()
             return True, product_id
 
         except Exception as e:
-            print(f"Error adding product for user: {e}")
+            print(f'Error adding product for user: {e}')
             conn.rollback()
             return False, -1
 
@@ -138,25 +130,30 @@ class Database:
         conn = self.get_connection()
         cursor = conn.cursor()
 
-        cursor.execute('''
+        cursor.execute(
+            """
             SELECT p.*, up.notified
             FROM products p
             JOIN user_products up ON p.id = up.product_id
             WHERE up.user_id = ?
             ORDER BY up.added_at DESC
-        ''', (user_id,))
+        """,
+            (user_id,),
+        )
 
         products = []
         for row in cursor.fetchall():
-            products.append({
-                'id': row['id'],
-                'url': row['url'],
-                'store_number': row['store_number'],
-                'title': row['title'],
-                'in_stock': bool(row['in_stock']),
-                'last_checked': row['last_checked'],
-                'notified': bool(row['notified'])
-            })
+            products.append(
+                {
+                    'id': row['id'],
+                    'url': row['url'],
+                    'store_number': row['store_number'],
+                    'title': row['title'],
+                    'in_stock': bool(row['in_stock']),
+                    'last_checked': row['last_checked'],
+                    'notified': bool(row['notified']),
+                }
+            )
 
         conn.close()
         return products
@@ -174,16 +171,10 @@ class Database:
                 product_id = products[product_index]['id']
 
                 # Remove the user-product relationship
-                cursor.execute(
-                    'DELETE FROM user_products WHERE user_id = ? AND product_id = ?',
-                    (user_id, product_id)
-                )
+                cursor.execute('DELETE FROM user_products WHERE user_id = ? AND product_id = ?', (user_id, product_id))
 
                 # Check if any other users are tracking this product
-                cursor.execute(
-                    'SELECT COUNT(*) as count FROM user_products WHERE product_id = ?',
-                    (product_id,)
-                )
+                cursor.execute('SELECT COUNT(*) as count FROM user_products WHERE product_id = ?', (product_id,))
                 count = cursor.fetchone()['count']
 
                 # If no other users are tracking it, delete the product
@@ -196,7 +187,7 @@ class Database:
             return False
 
         except Exception as e:
-            print(f"Error removing product: {e}")
+            print(f'Error removing product: {e}')
             conn.rollback()
             return False
 
@@ -221,25 +212,22 @@ class Database:
             if title:
                 cursor.execute(
                     'UPDATE products SET in_stock = ?, title = ?, last_checked = ? WHERE id = ?',
-                    (in_stock, title, datetime.now().isoformat(), product_id)
+                    (in_stock, title, datetime.now().isoformat(), product_id),
                 )
             else:
                 cursor.execute(
                     'UPDATE products SET in_stock = ?, last_checked = ? WHERE id = ?',
-                    (in_stock, datetime.now().isoformat(), product_id)
+                    (in_stock, datetime.now().isoformat(), product_id),
                 )
 
             # Record in stock history
-            cursor.execute(
-                'INSERT INTO stock_history (product_id, in_stock) VALUES (?, ?)',
-                (product_id, in_stock)
-            )
+            cursor.execute('INSERT INTO stock_history (product_id, in_stock) VALUES (?, ?)', (product_id, in_stock))
 
             conn.commit()
             return previous_stock, in_stock
 
         except Exception as e:
-            print(f"Error updating product stock: {e}")
+            print(f'Error updating product stock: {e}')
             conn.rollback()
             return False, False
 
@@ -255,14 +243,16 @@ class Database:
 
         products = []
         for row in cursor.fetchall():
-            products.append({
-                'id': row['id'],
-                'url': row['url'],
-                'store_number': row['store_number'],
-                'title': row['title'],
-                'in_stock': bool(row['in_stock']),
-                'last_checked': row['last_checked']
-            })
+            products.append(
+                {
+                    'id': row['id'],
+                    'url': row['url'],
+                    'store_number': row['store_number'],
+                    'title': row['title'],
+                    'in_stock': bool(row['in_stock']),
+                    'last_checked': row['last_checked'],
+                }
+            )
 
         conn.close()
         return products
@@ -272,10 +262,7 @@ class Database:
         conn = self.get_connection()
         cursor = conn.cursor()
 
-        cursor.execute(
-            'SELECT user_id FROM user_products WHERE product_id = ?',
-            (product_id,)
-        )
+        cursor.execute('SELECT user_id FROM user_products WHERE product_id = ?', (product_id,))
 
         user_ids = [row['user_id'] for row in cursor.fetchall()]
         conn.close()
@@ -288,7 +275,7 @@ class Database:
 
         cursor.execute(
             'UPDATE user_products SET notified = ? WHERE user_id = ? AND product_id = ?',
-            (notified, user_id, product_id)
+            (notified, user_id, product_id),
         )
 
         conn.commit()
@@ -299,10 +286,7 @@ class Database:
         conn = self.get_connection()
         cursor = conn.cursor()
 
-        cursor.execute(
-            'UPDATE user_products SET notified = 0 WHERE product_id = ?',
-            (product_id,)
-        )
+        cursor.execute('UPDATE user_products SET notified = 0 WHERE product_id = ?', (product_id,))
 
         conn.commit()
         conn.close()
@@ -312,22 +296,27 @@ class Database:
         conn = self.get_connection()
         cursor = conn.cursor()
 
-        cursor.execute('''
+        cursor.execute(
+            """
             SELECT id, product_id, in_stock, checked_at
             FROM stock_history
             WHERE product_id = ?
             ORDER BY checked_at DESC
             LIMIT ?
-        ''', (product_id, limit))
+        """,
+            (product_id, limit),
+        )
 
         history = []
         for row in cursor.fetchall():
-            history.append({
-                'id': row['id'],
-                'product_id': row['product_id'],
-                'in_stock': bool(row['in_stock']),
-                'checked_at': row['checked_at']
-            })
+            history.append(
+                {
+                    'id': row['id'],
+                    'product_id': row['product_id'],
+                    'in_stock': bool(row['in_stock']),
+                    'checked_at': row['checked_at'],
+                }
+            )
 
         conn.close()
         return history
