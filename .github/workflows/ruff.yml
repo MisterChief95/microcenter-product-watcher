@@ -25,3 +25,4 @@ jobs:
           args: "check --output-format=github ."
           # The GITHUB_TOKEN is automatically available for PR comments
           github-token: ${{ secrets.GITHUB_TOKEN }}
+          src: "./stock_checker"
