@@ -1,5 +1,6 @@
 import os
 import re
+import logging
 from datetime import datetime
 
 import discord
@@ -12,6 +13,14 @@ from stock_checker.config import Config
 from stock_checker.monitor import ProductMonitor
 
 load_dotenv()
+
+# Configure logging
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+    datefmt='%Y-%m-%d %H:%M:%S'
+)
+logger = logging.getLogger(__name__)
 
 intents = discord.Intents.default()
 intents.message_content = True
@@ -73,19 +82,24 @@ class RegisterModal(Modal):
         self.add_item(self.url_input)
 
     async def on_submit(self, interaction: discord.Interaction):
+        logger.info(f"User {interaction.user.id} ({interaction.user.name}) started product registration")
         await interaction.response.defer(ephemeral=True)
 
         store_number = self.store_number_input.value.strip()
         product_url = self.url_input.value
 
+        logger.debug(f"Registration input - Store: {store_number}, URL: {product_url}")
+
         # Validate store number (should be numeric and 3 digits)
         if not store_number.isdigit() or len(store_number) != 3:
+            logger.warning(f"Invalid store number provided by user {interaction.user.id}: {store_number}")
             await interaction.followup.send("❌ Invalid store number. Please provide a 3-digit store number (e.g., 131, 065, 121).", ephemeral=True)
             return
 
         # Parse and normalize the URL
         parsed_url = parse_product_url(product_url)
         if not parsed_url:
+            logger.warning(f"Invalid URL format provided by user {interaction.user.id}: {product_url}")
             await interaction.followup.send(
                 "❌ Invalid URL format. Please provide:\n"
                 "- Full URL: https://www.microcenter.com/product/12345/product-name\n"
@@ -95,10 +109,14 @@ class RegisterModal(Modal):
             )
             return
 
+        logger.info(f"Parsed URL: {parsed_url}")
+        logger.info(f"Checking product availability for user {interaction.user.id}")
+
         # Validate the product exists and get its title
         in_stock, title = await self.monitor.check_product_availability(parsed_url, store_number)
 
         if title is None:
+            logger.error(f"Failed to fetch product info for {parsed_url} at store {store_number}")
             await interaction.followup.send(
                 "❌ Unable to fetch product information from Microcenter.\n\n"
                 "Please verify:\n"
@@ -109,10 +127,13 @@ class RegisterModal(Modal):
             )
             return
 
+        logger.info(f"Product found: {title} - Stock status: {in_stock}")
+
         # Register the product
         success = await self.monitor.add_product(interaction.user.id, parsed_url, store_number, title, in_stock)
 
         if success:
+            logger.info(f"Product registered successfully for user {interaction.user.id}: {title}")
             stock_status = "✅ In Stock" if in_stock else "❌ Out of Stock"
             await interaction.followup.send(
                 f"""✅ Product registered successfully!
@@ -124,6 +145,7 @@ I'll check availability every {Config.CHECK_INTERVAL // 60} minutes and notify y
                 ephemeral=True
             )
         else:
+            logger.error(f"Failed to register product for user {interaction.user.id}: {title}")
             await interaction.followup.send(
                 "❌ Failed to register product. Please try again.",
                 ephemeral=True
@@ -132,15 +154,19 @@ I'll check availability every {Config.CHECK_INTERVAL // 60} minutes and notify y
 
 @bot.event
 async def on_ready():
-    print(f'{bot.user} has connected to Discord!')
-    print(f'Bot is ready to receive commands')
+    logger.info(f'{bot.user} has connected to Discord!')
+    logger.info(f'Bot is ready to receive commands')
+    logger.info(f'Connected to {len(bot.guilds)} guild(s)')
     # Sync slash commands
     try:
         synced = await bot.tree.sync()
-        print(f"Synced {len(synced)} command(s)")
+        logger.info(f"Synced {len(synced)} command(s)")
+        for cmd in synced:
+            logger.debug(f"  - {cmd.name}")
     except Exception as e:
-        print(f"Failed to sync commands: {e}")
+        logger.error(f"Failed to sync commands: {e}", exc_info=True)
     # Start the monitoring task
+    logger.info("Starting product monitoring loop")
     bot.loop.create_task(monitor.check_products_loop())
 
 
@@ -149,6 +175,7 @@ async def on_ready():
 @discord.app_commands.allowed_contexts(guilds=True, dms=True, private_channels=True)
 async def register_product(interaction: discord.Interaction):
     """Register a new product to monitor"""
+    logger.info(f"User {interaction.user.id} ({interaction.user.name}) invoked /register command")
     modal = RegisterModal(monitor, title="Register Product")
     await interaction.response.send_modal(modal)
 
@@ -158,7 +185,9 @@ async def register_product(interaction: discord.Interaction):
 @discord.app_commands.allowed_contexts(guilds=True, dms=True, private_channels=True)
 async def list_products(interaction: discord.Interaction):
     """List all products registered by the user"""
+    logger.info(f"User {interaction.user.id} ({interaction.user.name}) invoked /list command")
     products = monitor.get_user_products(interaction.user.id)
+    logger.debug(f"User {interaction.user.id} has {len(products)} registered product(s)")
 
     if not products:
         await interaction.response.send_message(
@@ -197,11 +226,14 @@ async def list_products(interaction: discord.Interaction):
 @discord.app_commands.allowed_contexts(guilds=True, dms=True, private_channels=True)
 async def remove_product(interaction: discord.Interaction, product_number: int):
     """Remove a product from monitoring"""
+    logger.info(f"User {interaction.user.id} ({interaction.user.name}) invoked /remove command for product #{product_number}")
     success = monitor.remove_product(interaction.user.id, product_number - 1)
 
     if success:
+        logger.info(f"Product #{product_number} removed successfully for user {interaction.user.id}")
         await interaction.response.send_message(f"✅ Product #{product_number} removed successfully!", ephemeral=True)
     else:
+        logger.warning(f"Product #{product_number} not found for user {interaction.user.id}")
         await interaction.response.send_message(
             f"❌ Could not find product #{product_number}. Use `/list` to see your products.",
             ephemeral=True
@@ -213,9 +245,11 @@ async def remove_product(interaction: discord.Interaction, product_number: int):
 @discord.app_commands.allowed_contexts(guilds=True, dms=True, private_channels=True)
 async def check_all(interaction: discord.Interaction):
     """Manually trigger a check for all user's products"""
+    logger.info(f"User {interaction.user.id} ({interaction.user.name}) invoked /checkall command")
     await interaction.response.defer(ephemeral=True)
 
     products = monitor.get_user_products(interaction.user.id)
+    logger.debug(f"User {interaction.user.id} has {len(products)} product(s) to check")
 
     if not products:
         await interaction.followup.send(
@@ -226,6 +260,7 @@ async def check_all(interaction: discord.Interaction):
         return
 
     # Perform the check
+    logger.info(f"Starting manual check for user {interaction.user.id}")
     await monitor.check_user_products(interaction.user.id)
 
     # Get updated product info
@@ -249,6 +284,7 @@ async def check_all(interaction: discord.Interaction):
         message += f"   {product['url']}\n\n"
 
     message += f"\n**Summary**: {in_stock_count} in stock, {out_of_stock_count} out of stock"
+    logger.info(f"Manual check complete for user {interaction.user.id}: {in_stock_count} in stock, {out_of_stock_count} out of stock")
 
     await interaction.followup.send(message, ephemeral=True)
 
@@ -366,6 +402,7 @@ class ProductSelectView(View):
 @discord.app_commands.allowed_contexts(guilds=True, dms=True, private_channels=True)
 async def view_history(interaction: discord.Interaction):
     """View stock check history for a product"""
+    logger.info(f"User {interaction.user.id} ({interaction.user.name}) invoked /history command")
     products = monitor.get_user_products(interaction.user.id)
 
     if not products:
@@ -388,10 +425,11 @@ async def view_history(interaction: discord.Interaction):
 def main():
     token = os.getenv('DISCORD_BOT_TOKEN')
     if not token:
-        print("ERROR: DISCORD_BOT_TOKEN not found in environment variables!")
-        print("Please create a .env file with your Discord bot token.")
+        logger.error("DISCORD_BOT_TOKEN not found in environment variables!")
+        logger.error("Please create a .env file with your Discord bot token.")
         return
 
+    logger.info("Starting bot...")
     bot.run(token)
 
 
