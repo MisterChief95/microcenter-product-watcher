@@ -38,5 +38,8 @@ RUN mkdir -p /app/data
 # Set the database path to the volume mount
 ENV DATABASE_PATH=/app/data/products.db
 
+# Copy entry point
+COPY run.py ./
+
 # Run the bot
-CMD ["python", "-m", "stock_checker.bot"]
+CMD ["python", "run.py"]
