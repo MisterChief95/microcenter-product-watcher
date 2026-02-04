@@ -13,18 +13,16 @@ from stock_checker.monitor import ProductMonitor
 
 load_dotenv()
 
-# Configure logging
+# Set up logging manually (don't use discord.utils.setup_logging to avoid duplicates)
 logging.basicConfig(
     level=logging.INFO,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+    format='%(asctime)s %(levelname)-8s %(name)s %(message)s',
     datefmt='%Y-%m-%d %H:%M:%S',
-    force=True,  # Prevent duplicate handlers
+    handlers=[logging.StreamHandler()],
+    force=True,  # Force reconfiguration if already configured
 )
-logger = logging.getLogger(__name__)
 
-# Configure discord.py logger to use the same settings
-discord_logger = logging.getLogger('discord')
-discord_logger.setLevel(logging.INFO)
+logger = logging.getLogger(__name__)
 
 intents = discord.Intents.default()
 intents.message_content = True
@@ -143,7 +141,7 @@ class RegisterModal(Modal):
 **{title}**
 Store: {store_number}
 Current Status: {stock_status}
-{parsed_url}
+<{parsed_url}>
 I'll check availability every {Config.CHECK_INTERVAL // 60} minutes and notify you when it's in stock!""",
                 ephemeral=True,
             )
@@ -154,6 +152,13 @@ I'll check availability every {Config.CHECK_INTERVAL // 60} minutes and notify y
 
 @bot.event
 async def on_ready():
+    # on_ready can fire multiple times (reconnects), so we need to guard against starting duplicate tasks
+    if hasattr(bot, '_monitoring_task_started'):
+        logger.debug('on_ready fired again (reconnect) - skipping duplicate setup')
+        return
+
+    bot._monitoring_task_started = True
+
     logger.info(f'{bot.user} has connected to Discord!')
     logger.info('Bot is ready to receive commands')
     logger.info(f'Connected to {len(bot.guilds)} guild(s)')
@@ -216,7 +221,7 @@ async def list_products(interaction: discord.Interaction):
 
         message += f'   URL: {product["url"]}\n\n'
 
-    await interaction.response.send_message(message, ephemeral=True)
+    await interaction.response.send_message(message, ephemeral=True, suppress_embeds=True)
 
 
 @bot.tree.command(name='remove', description='Remove a registered product')
@@ -277,7 +282,7 @@ async def check_all(interaction: discord.Interaction):
             out_of_stock_count += 1
             message += f'❌ **{title}** - Out of Stock\n'
         message += f'   Store: {product["store_number"]}\n'
-        message += f'   {product["url"]}\n\n'
+        message += f'   <{product["url"]}>\n\n'
 
     message += f'\n**Summary**: {in_stock_count} in stock, {out_of_stock_count} out of stock'
     logger.info(
@@ -344,7 +349,7 @@ class ProductSelectView(View):
         title = product.get('title', 'Unknown Product')
         message = f'**Stock History: {title}**\n'
         message += f'Store: {product["store_number"]}\n'
-        message += f'{product["url"]}\n\n'
+        message += f'<{product["url"]}>\n\n'
         message += '**Last 20 Checks:**\n'
 
         # Group consecutive same-status checks

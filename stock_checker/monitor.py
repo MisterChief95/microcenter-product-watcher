@@ -8,6 +8,7 @@ from bs4 import BeautifulSoup
 from stock_checker.config import Config
 from stock_checker.database import Database
 
+
 logger = logging.getLogger(__name__)
 
 
