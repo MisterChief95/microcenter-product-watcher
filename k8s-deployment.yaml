@@ -1,0 +1,30 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: microcenter-product-watcher
+  labels:
+    app: microcenter-product-watcher
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: microcenter-product-watcher
+  template:
+    metadata:
+      labels:
+        app: microcenter-product-watcher
+    spec:
+      containers:
+      - name: microcenter-product-watcher
+        image: mistrchief95/microcenter-product-watcher:latest
+        imagePullPolicy: Always
+        env:
+        - name: DISCORD_BOT_TOKEN
+          value: "<YOUR_TOKEN_HERE>"
+        volumeMounts:
+        - name: data
+          mountPath: /app/data
+      volumes:
+      - name: data
+        persistentVolumeClaim:
+          claimName: microcenter-data-pvc
