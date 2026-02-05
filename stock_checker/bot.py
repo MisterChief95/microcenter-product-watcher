@@ -81,8 +81,17 @@ class RegisterModal(Modal):
         self.add_item(self.url_input)
 
     async def on_submit(self, interaction: discord.Interaction):
-        logger.info(f'User {interaction.user.id} ({interaction.user.name}) started product registration')
-        await interaction.response.defer(ephemeral=True)
+        logger.info(
+            f'User {interaction.user.id} ({interaction.user.name}) started product registration (modal interaction ID: {interaction.id})'
+        )
+        try:
+            await interaction.response.defer(ephemeral=True)
+        except discord.errors.NotFound:
+            logger.error(f'Modal interaction expired for user {interaction.user.id}')
+            return
+        except Exception as e:
+            logger.error(f'Error deferring modal response for user {interaction.user.id}: {e}', exc_info=True)
+            return
 
         store_number = self.store_number_input.value.strip()
         product_url = self.url_input.value
@@ -152,16 +161,10 @@ I'll check availability every {Config.CHECK_INTERVAL // 60} minutes and notify y
 
 @bot.event
 async def on_ready():
-    # on_ready can fire multiple times (reconnects), so we need to guard against starting duplicate tasks
-    if hasattr(bot, '_monitoring_task_started'):
-        logger.debug('on_ready fired again (reconnect) - skipping duplicate setup')
-        return
-
-    bot._monitoring_task_started = True
-
     logger.info(f'{bot.user} has connected to Discord!')
     logger.info('Bot is ready to receive commands')
     logger.info(f'Connected to {len(bot.guilds)} guild(s)')
+    logger.info(f'Bot latency: {bot.latency * 1000:.2f}ms')
     # Sync slash commands
     try:
         synced = await bot.tree.sync()
@@ -180,9 +183,43 @@ async def on_ready():
 @discord.app_commands.allowed_contexts(guilds=True, dms=True, private_channels=True)
 async def register_product(interaction: discord.Interaction):
     """Register a new product to monitor"""
-    logger.info(f'User {interaction.user.id} ({interaction.user.name}) invoked /register command')
-    modal = RegisterModal(monitor, title='Register Product')
-    await interaction.response.send_modal(modal)
+    import time
+
+    start_time = time.time()
+    logger.info(
+        f'User {interaction.user.id} ({interaction.user.name}) invoked /register command (interaction ID: {interaction.id})'
+    )
+
+    # Check if interaction was already responded to
+    if interaction.response.is_done():
+        elapsed = (time.time() - start_time) * 1000
+        logger.warning(f'Interaction already responded to for user {interaction.user.id} after {elapsed:.2f}ms')
+        return
+
+    try:
+        modal = RegisterModal(monitor, title='Register Product')
+        await interaction.response.send_modal(modal)
+        elapsed = (time.time() - start_time) * 1000
+        logger.debug(f'Modal sent successfully to user {interaction.user.id} in {elapsed:.2f}ms')
+    except discord.errors.NotFound as e:
+        elapsed = (time.time() - start_time) * 1000
+        logger.error(f'Interaction expired for user {interaction.user.id} after {elapsed:.2f}ms: {e}')
+        # Can't respond since the interaction is already expired
+    except discord.errors.HTTPException as e:
+        elapsed = (time.time() - start_time) * 1000
+        if e.code == 40060:  # Interaction already acknowledged
+            logger.error(
+                f'Interaction already acknowledged for user {interaction.user.id} after {elapsed:.2f}ms - possible race condition or network issue'
+            )
+        else:
+            logger.error(
+                f'HTTP error sending modal to user {interaction.user.id} after {elapsed:.2f}ms: {e}', exc_info=True
+            )
+    except Exception as e:
+        elapsed = (time.time() - start_time) * 1000
+        logger.error(
+            f'Unexpected error sending modal to user {interaction.user.id} after {elapsed:.2f}ms: {e}', exc_info=True
+        )
 
 
 @bot.tree.command(name='list', description='List all your registered products')
