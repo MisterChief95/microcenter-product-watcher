@@ -1,5 +1,6 @@
 import asyncio
 import logging
+import ssl
 from datetime import datetime, timedelta
 
 import aiohttp
@@ -9,6 +10,13 @@ from stock_checker.config import Config
 from stock_checker.database import Database
 
 logger = logging.getLogger(__name__)
+
+
+# Create SSL context that's more permissive (similar to curl)
+ssl_context = ssl.create_default_context()
+ssl_context.check_hostname = True
+ssl_context.verify_mode = ssl.CERT_REQUIRED
+ssl_context.minimum_version = ssl.TLSVersion.TLSv1_2
 
 
 class ProductMonitor:
@@ -107,13 +115,25 @@ class ProductMonitor:
 
             # Add timeout to prevent hanging requests
             timeout = aiohttp.ClientTimeout(total=30)
-            async with aiohttp.ClientSession(timeout=timeout) as session:
+
+            # Create TCP connector with SSL context
+            connector = aiohttp.TCPConnector(ssl=ssl_context)
+
+            async with aiohttp.ClientSession(timeout=timeout, connector=connector) as session:
                 # Set up cookies
                 cookies = {cookie['name']: cookie['value']}
 
                 async with session.get(url, headers=headers, cookies=cookies) as response:
                     if response.status != 200:
                         logger.warning(f'HTTP {response.status} when fetching {url}')
+                        # Log response headers and body for debugging 403s
+                        if response.status == 403:
+                            logger.debug(f'Response headers: {response.headers}')
+                            try:
+                                body = await response.text()
+                                logger.debug(f'Response body preview: {body[:500]}')
+                            except:
+                                pass
                         return None, None
 
                     logger.debug(f'Successfully fetched {url} (status 200)')
