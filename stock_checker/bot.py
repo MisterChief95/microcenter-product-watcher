@@ -81,7 +81,9 @@ class RegisterModal(Modal):
         self.add_item(self.url_input)
 
     async def on_submit(self, interaction: discord.Interaction):
-        logger.info(f'User {interaction.user.id} ({interaction.user.name}) started product registration (modal interaction ID: {interaction.id})')
+        logger.info(
+            f'User {interaction.user.id} ({interaction.user.name}) started product registration (modal interaction ID: {interaction.id})'
+        )
         try:
             await interaction.response.defer(ephemeral=True)
         except discord.errors.NotFound:
@@ -182,8 +184,11 @@ async def on_ready():
 async def register_product(interaction: discord.Interaction):
     """Register a new product to monitor"""
     import time
+
     start_time = time.time()
-    logger.info(f'User {interaction.user.id} ({interaction.user.name}) invoked /register command (interaction ID: {interaction.id})')
+    logger.info(
+        f'User {interaction.user.id} ({interaction.user.name}) invoked /register command (interaction ID: {interaction.id})'
+    )
 
     # Check if interaction was already responded to
     if interaction.response.is_done():
@@ -203,12 +208,18 @@ async def register_product(interaction: discord.Interaction):
     except discord.errors.HTTPException as e:
         elapsed = (time.time() - start_time) * 1000
         if e.code == 40060:  # Interaction already acknowledged
-            logger.error(f'Interaction already acknowledged for user {interaction.user.id} after {elapsed:.2f}ms - possible race condition or network issue')
+            logger.error(
+                f'Interaction already acknowledged for user {interaction.user.id} after {elapsed:.2f}ms - possible race condition or network issue'
+            )
         else:
-            logger.error(f'HTTP error sending modal to user {interaction.user.id} after {elapsed:.2f}ms: {e}', exc_info=True)
+            logger.error(
+                f'HTTP error sending modal to user {interaction.user.id} after {elapsed:.2f}ms: {e}', exc_info=True
+            )
     except Exception as e:
         elapsed = (time.time() - start_time) * 1000
-        logger.error(f'Unexpected error sending modal to user {interaction.user.id} after {elapsed:.2f}ms: {e}', exc_info=True)
+        logger.error(
+            f'Unexpected error sending modal to user {interaction.user.id} after {elapsed:.2f}ms: {e}', exc_info=True
+        )
 
 
 @bot.tree.command(name='list', description='List all your registered products')

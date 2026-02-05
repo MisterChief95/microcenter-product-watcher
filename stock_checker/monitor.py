@@ -132,7 +132,7 @@ class ProductMonitor:
                             try:
                                 body = await response.text()
                                 logger.debug(f'Response body preview: {body[:500]}')
-                            except:
+                            except Exception:
                                 pass
                         return None, None
 
