@@ -2,6 +2,7 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: microcenter-product-watcher
+  namespace: microcenter
   labels:
     app: microcenter-product-watcher
 spec:
