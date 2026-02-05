@@ -16,7 +16,7 @@ logger = logging.getLogger(__name__)
 ssl_context = ssl.create_default_context()
 ssl_context.check_hostname = True
 ssl_context.verify_mode = ssl.CERT_REQUIRED
-ssl_context.minimum_version = ssl.TLSVersion.TLSv1_2
+ssl_context.minimum_version = ssl.TLSVersion.TLSv1_3
 
 
 class ProductMonitor:
